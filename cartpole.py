@@ -1,4 +1,3 @@
-
 import gymnasium as gym
 import numpy as np
 import time
@@ -14,10 +13,10 @@ env=gym.make('CartPole-v1',render_mode='human')
 episodeNumber=2
 timeSteps=1000
 
-model = A2C('MlpPolicy', env, verbose=1)
-model.learn(total_timesteps=6000)
-model.save("cartpole")
-#model.load("cartpole")
+#model = A2C('MlpPolicy', env, verbose=1)
+#model.learn(total_timesteps=6000)
+#model.save("cartpole")
+model=A2C.load("cartpole_DQN")
 time.sleep(2)
 print("Done with training")
 for episodeIndex in range(episodeNumber):

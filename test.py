@@ -12,8 +12,8 @@ from stable_baselines3 import A2C
 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-filename='data/gmedata.csv' 
-#filename='data/STOCK_US_XNYS_VZ.csv'
+#filename='data/gmedata.csv' 
+filename='data/STOCK_US_XNYS_VZ.csv'
 df = pd.read_csv(filename,thousands=",", decimal=".")
 
 df['Date']=pd.to_datetime(df["Date"])
@@ -38,6 +38,7 @@ env = StocksRLEnv( df=df,
 action_stats = {Actions.Sell: 0, Actions.Buy: 0}
 
 #use random sample to test env
+'''
 state = env.reset()
 while True: 
     action = env.action_space.sample()
@@ -52,12 +53,17 @@ plt.figure(figsize=(15,6))
 plt.cla()
 env.render_all()
 plt.show()
+'''
 
-#train model
 state = env.reset(seed=2024)
-model = A2C('MlpPolicy', env, verbose=0)
+#train model
+model = A2C('MlpPolicy', env, verbose=1)
 model.learn(total_timesteps=50000)
 model.save("trading")
+
+#model = A2C.load("trading")
+#model.set_env(env)
+
 #use model
 action_stats = {Actions.Sell: 0, Actions.Buy: 0}
 observation, info = env.reset(seed=2023)
