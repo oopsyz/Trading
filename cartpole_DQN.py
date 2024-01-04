@@ -6,7 +6,7 @@ Running this code will render the agent solving the CartPole environment using O
 Usage: python3 minDQN.py
 """
 
-import gym
+import gymnasium as gym
 import tensorflow as tf
 import numpy as np
 from tensorflow import keras
@@ -18,9 +18,10 @@ import random
 RANDOM_SEED = 5
 tf.random.set_seed(RANDOM_SEED)
 
-env = gym.make('CartPole-v1')
-env.seed(RANDOM_SEED)
 np.random.seed(RANDOM_SEED)
+env = gym.make('CartPole-v1', render_mode="human")
+#env.seed(RANDOM_SEED)
+
 
 print("Action Space: {}".format(env.action_space))
 print("State space: {}".format(env.observation_space))
@@ -36,7 +37,8 @@ def agent(state_shape, action_shape):
     The index of the highest action (0.7) is action #1.
     """
     learning_rate = 0.001
-    init = tf.keras.initializers.HeUniform()
+    tf.random.set_seed(RANDOM_SEED)
+    init = tf.keras.initializers.HeUniform(seed=RANDOM_SEED)
     model = keras.Sequential()
     model.add(keras.layers.Dense(24, input_shape=state_shape, activation='relu', kernel_initializer=init))
     model.add(keras.layers.Dense(12, activation='relu', kernel_initializer=init))
@@ -103,7 +105,7 @@ def main():
 
     for episode in range(train_episodes):
         total_training_rewards = 0
-        observation = env.reset()
+        observation,_ = env.reset()
         done = False
         while not done:
             steps_to_update_target_model += 1
@@ -118,11 +120,16 @@ def main():
             else:
                 # Exploit best known action
                 # model dims are (batch, env.observation_space.n)
-                encoded = observation
+                if isinstance(observation, tuple):
+                    # Access the first element using index 0
+                    encoded = observation[0]
+                    print("tuple is here*************************")
+                else:
+                    encoded = observation
                 encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
                 predicted = model.predict(encoded_reshaped).flatten()
                 action = np.argmax(predicted)
-            new_observation, reward, done, info = env.step(action)
+            new_observation, reward, done, interrupted, info = env.step(action)
             replay_memory.append([observation, action, reward, new_observation, done])
 
             # 3. Update the Main Network using the Bellman Equation
@@ -144,8 +151,6 @@ def main():
 
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
     env.close()
-    print("Saving Keras model, it can NOT be loaded as Stable_baselines3 model")
-    target_model.save("CartPoleDQN.keras")
 
 if __name__ == '__main__':
     main()
