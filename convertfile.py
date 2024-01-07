@@ -1,5 +1,3 @@
-#convert experience data from huggingface format to CSV
-#TODO, convert CSV to huggingface format to facilitate imitation learning using human expert input
 import pyarrow as pa
 import pandas as pd
 import numpy as np
@@ -20,15 +18,6 @@ from imitation.data import serialize
 path='/home/zhong/quickstart/rl/rollouts/final.npz'
 csv_file_path ='/home/zhong/quickstart/rl/csv_file.csv'
 
-def load(path: AnyPath) -> Sequence[Trajectory]:
-  if os.path.isdir(path):  # huggingface datasets format
-     dataset = datasets.load_from_disk(str(path))
-     print(dataset)
-     if not isinstance(dataset, datasets.Dataset):  # pragma: no cover
-              print("Expected to load a `datasets.Dataset` but got {type(dataset)}")
-
-  return huggingface_utils.TrajectoryDatasetSequence(dataset)
-
 data=serialize.load(path)
 obs_to_save = []
 #print("*****",data[0])
@@ -41,18 +30,24 @@ for i, trajectory in enumerate(data):
         dim = extracted_action.size
         print("act size:",len(extracted_action))
         extracted_term=trajectory.terminal
+        extracted_infos=np.empty((dim, 1)) #create placeholder for infos
         extracted_rews=trajectory.rews
         
         reshaped_acts = extracted_action.reshape(dim, 1)
+        reshaped_infos = extracted_infos
         reshaped_rews = extracted_rews.reshape(dim,1)
-        combined_data = np.concatenate((extracted_obs[:dim,:], reshaped_acts, reshaped_rews), axis=1) 
+        
+        padding_size = extracted_obs.shape[0] - extracted_action.shape[0]
+        padding_array = np.full((padding_size, 1), np.nan)
+        joined_array = np.vstack([reshaped_acts, padding_array])
+        combined_data = np.concatenate((extracted_obs, np.vstack([reshaped_acts, padding_array]), np.vstack([reshaped_infos, padding_array]), np.vstack([reshaped_rews, padding_array])), axis=1) 
         #print("OBS=", extracted_obs)
         #print(f"  Observation: {observation}")
         #print(f"  Action: {action}")
         break
 
 df = pd.DataFrame(combined_data)  # Adjust column names as needed
-print("hi",df.shape)
+df["terminated"] = extracted_term
 # Save to CSV
 
 df.to_csv(csv_file_path, index=False)  # Omit the index column

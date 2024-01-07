@@ -15,12 +15,12 @@ env=gym.make('CartPole-v1',render_mode='human')
 
 # simulate the environment
 episodeNumber=2
-timeSteps=1000
+timeSteps=6000
 
 model = A2C('MlpPolicy', env, verbose=1)
-model.learn(total_timesteps=6000)
-model.save("cartpole")
-#model=A2C.load("cartpole")
+#model.learn(total_timesteps=6000)
+#model.save("cartpole")
+model=A2C.load("model")
 time.sleep(2)
 print("Done with training")
 
@@ -28,14 +28,11 @@ for episodeIndex in range(episodeNumber):
     observation,_=env.reset()
     print(episodeIndex)
     env.render()
-    appendedObservations=[]
     for timeIndex in range(timeSteps):
         #random_action=env.action_space.sample()
-        random_action, _states=model.predict(observation)
-        print("timeindex:{}  action:{}".format(timeIndex,random_action))
-        observation, reward, terminated, interrupted, info =env.step(random_action)
-        appendedObservations.append(observation)
-        time.sleep(0.02)
+        action, _states=model.predict(observation)
+        observation, reward, terminated, interrupted, info =env.step(action)
+        #time.sleep(0.02)
         if (terminated):
             print("Terminated")
             time.sleep(2)

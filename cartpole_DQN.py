@@ -6,7 +6,7 @@ Running this code will render the agent solving the CartPole environment using O
 Usage: python3 minDQN.py
 """
 
-import gymnasium as gym
+import gym
 import tensorflow as tf
 import numpy as np
 from tensorflow import keras
@@ -43,7 +43,7 @@ def agent(state_shape, action_shape):
     model.add(keras.layers.Dense(24, input_shape=state_shape, activation='relu', kernel_initializer=init))
     model.add(keras.layers.Dense(12, activation='relu', kernel_initializer=init))
     model.add(keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init))
-    model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+    model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy'])
     return model
 
 def get_qs(model, state, step):
@@ -123,7 +123,6 @@ def main():
                 if isinstance(observation, tuple):
                     # Access the first element using index 0
                     encoded = observation[0]
-                    print("tuple is here*************************")
                 else:
                     encoded = observation
                 encoded_reshaped = encoded.reshape([1, encoded.shape[0]])

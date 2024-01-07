@@ -29,12 +29,16 @@ for trajectory_id, trajectory_data in trajectories:
 trajectory_objects = []
 observations = df.iloc[:, :4].to_numpy()  # Extract observations (columns 1-4)
 print("length=",len(observations))
-l=len(observations)
-actions = df.iloc[:l-1,4] #Trajectory() expect observations to have 1 additional row than actions
-rewards = df.iloc[:l-1,5]
-terminal = np.full(500, True)
-# Assuming you have a Trajectory class defined:
-trajectory_objects.append(Trajectory(observations, actions, terminal, rewards))
+len_obs=len(observations)
+num_of_obs=4
+#VSC file format 
+actions = df.iloc[:len_obs-1,num_of_obs] #Trajectory() expect observations to have 1 additional row than actions
+infos = df.iloc[:len_obs-1,num_of_obs+1]
+rewards = df.iloc[:len_obs-1,num_of_obs+2]
+terminal = df.iloc[0,num_of_obs+3]  #whether the trajectory was terminated, it just need one value
+
+# create Trajectory with Rewards and and to trajectory_objects in case there are multiple trajactories
+trajectory_objects.append(TrajectoryWithRew(observations, actions, infos, terminal, rewards))
 
 # Create TrajectoryDatasetSequence
 #dataset = huggingface_utils.trajectories_to_dataset(trajectory_objects)
