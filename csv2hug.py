@@ -1,3 +1,4 @@
+#read from CSV and save in Huggingface format to be used by imitation training
 import pandas as pd
 from imitation.data import huggingface_utils
 from imitation.data.types import AnyPath, Trajectory, TrajectoryWithRew
@@ -27,18 +28,18 @@ for trajectory_id, trajectory_data in trajectories:
     trajectory_objects.append(Trajectory(observations, actions, rewards))
 '''
 trajectory_objects = []
-observations = df.iloc[:, :4].to_numpy()  # Extract observations (columns 1-4)
-print("length=",len(observations))
-len_obs=len(observations)
-num_of_obs=4
-#VSC file format 
-actions = df.iloc[:len_obs-1,num_of_obs] #Trajectory() expect observations to have 1 additional row than actions
-infos = df.iloc[:len_obs-1,num_of_obs+1]
-rewards = df.iloc[:len_obs-1,num_of_obs+2]
-terminal = df.iloc[0,num_of_obs+3]  #whether the trajectory was terminated, it just need one value
-
-# create Trajectory with Rewards and and to trajectory_objects in case there are multiple trajactories
-trajectory_objects.append(TrajectoryWithRew(observations, actions, infos, terminal, rewards))
+for traj_id, trajectory_data in df.groupby('traj_id'):
+    observations = trajectory_data.iloc[:, :4].to_numpy()  # Extract observations (columns 1-4)
+    print("length=",len(observations))
+    len_obs=len(observations)
+    num_of_obs=4
+    #VSC file format 
+    actions = trajectory_data.iloc[:len_obs-1,num_of_obs] #Trajectory() expect observations to have 1 additional row than actions
+    infos = trajectory_data.iloc[:len_obs-1,num_of_obs+1]
+    rewards = trajectory_data.iloc[:len_obs-1,num_of_obs+2]
+    terminal = trajectory_data.iloc[0,num_of_obs+3]  #whether the trajectory was terminated, it just need one value
+    # create Trajectory with Rewards and and to trajectory_objects in case there are multiple trajactories
+    trajectory_objects.append(TrajectoryWithRew(observations, actions, infos, terminal, rewards))
 
 # Create TrajectoryDatasetSequence
 #dataset = huggingface_utils.trajectories_to_dataset(trajectory_objects)
