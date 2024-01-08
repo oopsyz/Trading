@@ -1,35 +1,28 @@
-import pyarrow as pa
+#by default takes the rollouts from following command and convert it to CSV file.
+#Then the CSV file can be edited manually
+#python -m imitation.scripts.train_rl with cartpole logging.log_dir=quickstart/rl/
+
 import pandas as pd
 import numpy as np
-import os
-import warnings
-from typing import Mapping, Sequence, cast
-
-import datasets
 import numpy as np
-
-from imitation.data import huggingface_utils
-from imitation.data.types import AnyPath, Trajectory, TrajectoryWithRew
-from imitation.util import util
 from imitation.data import serialize
 
-
-
-path='/home/zhong/quickstart/rl/rollouts/final.npz'
+input_path='/home/zhong/quickstart/rl/rollouts/final.npz'
 csv_file_path ='/home/zhong/quickstart/rl/csv_file.csv'
 
-data=serialize.load(path)
+data=serialize.load(input_path)
 combined_data=None
 #print("*****",data[0])
 # Print content of data (assuming it's a TrajectoryDatasetSequence)
 for i, trajectory in enumerate(data):
         print(f"Trajectory {i+1}:",trajectory)
         extracted_obs = trajectory.obs
-        print("obs size:",extracted_obs.shape[0], len(extracted_obs))
+        num_obs_cols = extracted_obs.shape[1]
+        obs_names = [f"obs{i+1}" for i in range(num_obs_cols)]
+        print(f"obs size: {extracted_obs.shape[0]} = {len(extracted_obs)}, number of features = {num_obs_cols}" )
         extracted_action=trajectory.acts
         extracted_rews=trajectory.rews
-        dim = extracted_action.size
-        print("act size:",len(extracted_action))
+        dim = extracted_action.shape[0]
         reshaped_acts = extracted_action.reshape(dim, 1)
         reshaped_rews = extracted_rews.reshape(dim,1)
         #
@@ -49,7 +42,9 @@ for i, trajectory in enumerate(data):
         #break #break after first loop to keep keep it simple for now
         
 df = pd.DataFrame(combined_data)  # Adjust column names as needed
-df.columns = ['obs1', 'obs2','obs3', 'obs4','action','info','rewards','terminal','traj_id']
+col_names = obs_names+['action']+['info']+['rewards']+['terminals']+['traj_id']
+df.columns = col_names
+#df.columns = ['obs1', 'obs2','obs3', 'obs4','action','info','rewards','terminal','traj_id']
 # Save to CSV
 
 df.to_csv(csv_file_path, index=False)  # Omit the index column
