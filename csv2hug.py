@@ -1,4 +1,7 @@
-#read from CSV and save in Huggingface format to be used by imitation training
+#Read from CSV and save in Huggingface format to be used by imitation training
+#By default it is generating files for cartpole training. Use following command to train
+#python -m imitation.scripts.train_adversarial gail with cartpole demonstrations.path=/home/zhong/quickstart/rl/test demonstrations.source=local
+
 import pandas as pd
 from imitation.data import huggingface_utils
 from imitation.data.types import AnyPath, Trajectory, TrajectoryWithRew
