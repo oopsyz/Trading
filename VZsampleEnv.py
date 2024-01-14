@@ -57,6 +57,7 @@ class MobilePhoneCarrierEnv(gym.Env):
     _sim_validation_status = spaces.Discrete(2)  # SIM
 
     reward=0
+    steps=0
 
     def __init__(self):
         super().__init__()
@@ -82,14 +83,8 @@ class MobilePhoneCarrierEnv(gym.Env):
         })
 
         self.action_space = spaces.Discrete(len(Actions))
-        self.current_state = self.observation_space.sample()
 
-        #set all validation status to 0
-        self.current_state["address_validation_status"] = 0
-        self.current_state["device_validation_status"] = 0
-        self.current_state["sim_validation_status"] = 0
-        self.current_state["mdn_status"] = 0
-        self.reward=0
+        self.current_state = self._get_obs()
         #self.current_state["verification_status"] = (random.randint(0, 1), random.randint(0, 1), random.randint(0, 1))
         
 
@@ -97,15 +92,8 @@ class MobilePhoneCarrierEnv(gym.Env):
         if seed is not None:
              self.np_random.seed(seed)
         # Reset the environment to its initial state (replace with your logic)
-        new_state = self.observation_space.sample()  # Example initialization
-      
-        #self.current_state[key] = np.array([value], dtype=int)
-        new_state["address_validation_status"] = 0
-        new_state["device_validation_status"] = 0
-        new_state["sim_validation_status"] = 0
-        new_state["mdn_status"] = 0
-        self.current_state=new_state
-        self.reward=0
+             
+        self.current_state=self._get_obs()
         return self.current_state, {}
 
     def step(self, action):
@@ -144,4 +132,11 @@ class MobilePhoneCarrierEnv(gym.Env):
         return self.current_state, self.reward, done, terminated, info
     
     def _get_obs(self):
-        return {}
+        new_state = self.observation_space.sample()  # Example initialization
+        #self.current_state[key] = np.array([value], dtype=int)
+        new_state["address_validation_status"] = 0
+        new_state["device_validation_status"] = 0
+        new_state["sim_validation_status"] = 0
+        new_state["mdn_status"] = 0
+        self.reward=0
+        return new_state
