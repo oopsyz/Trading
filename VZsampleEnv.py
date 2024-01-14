@@ -9,10 +9,17 @@ class Actions(Enum):
     AddrValidation=0
     DeviceValidation=1
     SimValidation=2
-    Activation=3
-#    AskZip=4
-#    AskSim=5
-#    AskIMEI=6
+    ServiceActivation=3
+    ReserveMDN=4
+    #ServiceQualification=5
+    #ServiceCatalogLookup=6
+    #ServiceInventoryMgt=7
+    def get_action_type(value):
+        for action in Actions:
+            if action.value == value:
+                return action
+        return None
+
 
 total_rewards=0
 
@@ -29,6 +36,7 @@ class MobilePhoneCarrierEnv(gym.Env):
     _sim1_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
     #sim2_type = spaces.Discrete(3)  # 3 SIM types: physical, eSIM, embedded
     #sim2_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
+    _mdn_status = spaces.Discrete(4) # 0: na; 1: reserved; 2: inUse; 3: pending return
 
     # Network config status
     _network_type = spaces.Discrete(4) #4G, 5G, undefined, other
@@ -69,15 +77,18 @@ class MobilePhoneCarrierEnv(gym.Env):
             "today": self._today,
             "address_validation_status": self._address_validation_status,
             "device_validation_status": self._device_validation_status,
-            "sim_validation_status": self._sim_validation_status
+            "sim_validation_status": self._sim_validation_status,
+            "mdn_status": self._mdn_status
         })
 
         self.action_space = spaces.Discrete(len(Actions))
         self.current_state = self.observation_space.sample()
+
         #set all validation status to 0
         self.current_state["address_validation_status"] = 0
         self.current_state["device_validation_status"] = 0
         self.current_state["sim_validation_status"] = 0
+        self.current_state["mdn_status"] = 0
         self.reward=0
         #self.current_state["verification_status"] = (random.randint(0, 1), random.randint(0, 1), random.randint(0, 1))
         
@@ -92,6 +103,7 @@ class MobilePhoneCarrierEnv(gym.Env):
         new_state["address_validation_status"] = 0
         new_state["device_validation_status"] = 0
         new_state["sim_validation_status"] = 0
+        new_state["mdn_status"] = 0
         self.current_state=new_state
         self.reward=0
         return self.current_state, {}
@@ -102,20 +114,23 @@ class MobilePhoneCarrierEnv(gym.Env):
         done = False
 
         if (action==Actions.AddrValidation.value and new_state["address_validation_status"] ==0):
-                new_state["address_validation_status"] = 1  # Mark address as validated
-                self.reward +=1
+            new_state["address_validation_status"] = 1  # Mark address as validated
+            self.reward +=1
         elif (action==Actions.DeviceValidation.value and new_state["device_validation_status"]==0):
-                new_state["device_validation_status"]=1
-                self.reward +=1
+            new_state["device_validation_status"]=1
+            self.reward +=1
         elif (action==Actions.SimValidation.value and new_state["sim_validation_status"]==0):
-                new_state["sim_validation_status"]=1
-                self.reward +=1
-        elif (action==Actions.Activation.value and
-               new_state["address_validation_status"] ==1 and 
-               new_state["device_validation_status"]==1 and 
-               new_state["sim_validation_status"]==1):  # Activate
-                self.reward += 5
-                done = True  # Complete order, end episode
+            new_state["sim_validation_status"]=1
+            self.reward +=1
+        elif (action==Actions.ReserveMDN.value and new_state["mdn_status"]==0):
+            new_state["mdn_status"]=1
+            self.reward +=1
+        elif (action==Actions.ServiceActivation.value and new_state["address_validation_status"] ==1 
+              and new_state["device_validation_status"]==1 and new_state["sim_validation_status"]==1
+              and new_state["mdn_status"]==1):  # Activate
+            new_state["mdn_status"]=2
+            self.reward += 5
+            done = True  # Complete order, end episode
         else:
             self.reward -=1
             done = False
