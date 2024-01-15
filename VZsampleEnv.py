@@ -12,6 +12,7 @@ class Actions(Enum):
     ServiceActivation=3
     ReserveMDN=4
     DeactivateOld=5
+    MakePayment=6
     #ServiceQualification=5
     #ServiceCatalogLookup=6
     #ServiceInventoryMgt=7
@@ -29,13 +30,12 @@ class MobilePhoneCarrierEnv(gym.Env):
 
     # Device Information
     _device_type = spaces.Discrete(3)  # Assuming 4 device types: smartphone, smartwatch, other
-    _manufacturer = spaces.Discrete(10)  # Assuming 10 major manufacturers: apple, samsung, google, ....
     _os = spaces.Discrete(3)  # iOS, Android, other
 
     # Sim Information
-    _sim1_type = spaces.Discrete(3)  # 3 SIM types: physical, eSIM, embedded
+    _sim1_type = spaces.Discrete(2)  # 2 SIM types: physical, eSIM
     _sim1_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
-    _sim2_type = spaces.Discrete(3)  # 3 SIM types: physical, eSIM, embedded
+    _sim2_type = spaces.Discrete(2)  # 2 SIM types: physical, eSIM, embedded
     _sim2_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
 
     #MDN Info
@@ -50,11 +50,8 @@ class MobilePhoneCarrierEnv(gym.Env):
     _ROAMGW_status = spaces.Discrete(4) #configured, not configured, pending, failed
     _TASPI_status = spaces.Discrete(4) #configured, not configured, pending, failed
 
-    # Customer info
-    _customer_status = spaces.Discrete(4) #active, inactive, new, other
-    _payment_status = spaces.Discrete(4) #paid, pastdue, pending, new, other
-    _sub_expiration_date = spaces.Discrete(31) #31 days in a month
-    _today = spaces.Discrete(31) #31 days in a month
+    # Payment info
+    _payment_status = spaces.Discrete(4) #0: pastdue, 1: paid; 2: pending, 3: new
 
     # Validations
     _address_validation_status = spaces.Discrete(2) # Address
@@ -63,35 +60,26 @@ class MobilePhoneCarrierEnv(gym.Env):
 
     reward=0
     steps=0
-
+    
     def __init__(self):
         super().__init__()
         self.observation_space = spaces.Dict({
-            "address_validation_status": self._address_validation_status,
-            "device_validation_status": self._device_validation_status,
-            "sim_validation_status": self._sim_validation_status,
-            "mdn_status": self._mdn_status,
-            "mdn2sim": self._mdn2sim,
-            "use_existing_mdn": self._useExistingMdn 
-        })
-        '''
-        self.observation_space = spaces.Dict({
             "device_type": self._device_type,
-            "manufacturer": self._manufacturer,
             "os": self._os,
+
             "sim_src_type": self._sim1_type,
             "sim_src_status": self._sim1_status,
             "sim_target_type":self._sim2_type,
             "sim_target_status":self._sim2_status,
+
             "network_type": self._network_type,
             "OCS_status": self._OCS_status,
             "HLR_status": self._HLR_status,
             "ROAMGW_status": self._ROAMGW_status,
             "TASPI_status": self._TASPI_status,
-            "customer_status": self._customer_status,
+
             "payment_status": self._payment_status,
-            "sub_expiration_date": self._sub_expiration_date,
-            "today": self._today,
+
             "address_validation_status": self._address_validation_status,
             "device_validation_status": self._device_validation_status,
             "sim_validation_status": self._sim_validation_status,
@@ -99,7 +87,6 @@ class MobilePhoneCarrierEnv(gym.Env):
             "mdn2sim": self._mdn2sim,
             "use_existing_mdn": self._useExistingMdn 
         })
-        '''
         self.action_space = spaces.Discrete(len(Actions))
 
         self.current_state = self._get_obs()
@@ -131,27 +118,33 @@ class MobilePhoneCarrierEnv(gym.Env):
         elif (action==Actions.ReserveMDN.value):
             if(new_state["use_existing_mdn"]==1):
                 self.reward -=1
-            elif(new_state["mdn_status"]==0):
+            elif(new_state["mdn_status"]==0): 
                 new_state["mdn_status"]=1
+                new_state["mdn2sim"]=2
                 self.reward +=1
             else:
                 self.reward -=1
         elif (action==Actions.ServiceActivation.value and self.is_everything_valid(new_state)):
-            if(new_state["use_existing_mdn"]==0): 
-                  if (new_state["mdn_status"]==1):  # Activate
+            if(new_state["payment_status"]!=1):
+                self.reward -=1
+            else: # paid customer continue
+                if(new_state["use_existing_mdn"]==0): 
+                    if (new_state["mdn_status"]==1):  # Activate
+                        new_state["mdn_status"]=2
+                        new_state["mdn2sim"]=2
+                        self.reward += 5
+                        #print("got here*************************")
+                        done = True  # Complete order, end episode
+                    else:
+                        self.reward -=1
+                elif new_state['mdn2sim'] in [0, 2]: # using existing number, check MDN association
                     new_state["mdn_status"]=2
                     self.reward += 5
                     done = True  # Complete order, end episode
-                  else:
+                elif(new_state['mdn2sim']==1):
                     self.reward -=1
-            elif new_state['mdn2sim'] in [0, 2]: # using existing number, check MDN association
-                new_state["mdn_status"]=2
-                self.reward += 5
-                done = True  # Complete order, end episode
-            elif(new_state['mdn2sim']==1):
-                self.reward -=1
-            else:
-                self.reward -=1
+                else:
+                    self.reward -=1
         elif (action==Actions.DeactivateOld.value):
             if(new_state["use_existing_mdn"]==1 and new_state["mdn2sim"]==1):
                 new_state["mdn2sim"]=0
@@ -159,6 +152,9 @@ class MobilePhoneCarrierEnv(gym.Env):
                 self.reward +=1
             else:
                 self.reward -=1
+        elif (action==Actions.MakePayment.value and new_state["payment_status"]!=1):
+            new_state["payment_status"]=1
+            self.reward +=1
         else:
             self.reward -=1
 
@@ -187,3 +183,22 @@ class MobilePhoneCarrierEnv(gym.Env):
         #new_state["mdn2sim"]=1
         self.reward=0
         return new_state
+
+    def render(self, mode='human'):
+        if mode == 'human':
+            print("---------- Activation Status ----------")
+
+            print(f"MDN is attached to : SIM {self.current_state['mdn2sim']}")
+            print(f"MDN status: {self.current_state['mdn_status']}\n")
+            print(f"Payment status: {self.current_state['payment_status']}")
+            print(f"Use Existing MDN: {self.current_state['use_existing_mdn']==1}")
+            print(f"Validation address: {self.current_state['address_validation_status']}")
+            print(f"Validation device: {self.current_state['device_validation_status']}")
+            print(f"Validation sim: {self.current_state['sim_validation_status']}") 
+            
+            print(f"Reward: {self.reward}")
+            if(self.current_state['mdn_status']==2):
+                print("***************Done***************")
+
+            # ... (print other relevant status information)
+            print("----------------------------------")

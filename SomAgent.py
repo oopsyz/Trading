@@ -7,13 +7,9 @@ env = MobilePhoneCarrierEnv()
 # Access the action space
 action_space = env.action_space
 
-# The single possible action would typically have a value of 0
-print(f"Action value:{action_space.sample()} \nObservations:{env.observation_space.sample()}")
-print("\n Visualize obs:",env.observation_space)
-
 #env.step(3)
 #train model
-model = PPO('MultiInputPolicy', env, verbose=1, learning_rate=0.0005)
+model = PPO('MultiInputPolicy', env, verbose=1, learning_rate=0.0005, tensorboard_log="./tensorboard_logs/")
 #model.learn(total_timesteps=50000)
 #model.save("activation")
 
@@ -23,12 +19,13 @@ model=PPO.load("activation")
 obs,_ = env.reset()
 # obs = FlattenObservation(obs)
 print("Reset obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["mdn_status"])
-for i in range(10):
+for i in range(16):
     action, _state = model.predict(obs, deterministic=True)
     print("Doing ", Actions.get_action_type(action))
     obs, reward, done, terminated, info = env.step(action)
-    print("episod ", i, "obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["mdn_status"],"reward:", reward, done)
-    #env.render()
+    #print("episod ", i, "obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["mdn_status"],"reward:", reward, done)
+    #print("mdn related to:", obs["mdn2sim"]," use existing? ",obs["use_existing_mdn"])
+    env.render(mode="human")
     if done:
       obs,_ = env.reset()
 
