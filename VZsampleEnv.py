@@ -35,11 +35,11 @@ class MobilePhoneCarrierEnv(gym.Env):
     # Sim Information
     _sim1_type = spaces.Discrete(2)  # 2 SIM types: physical, eSIM
     _sim1_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
-    _sim2_type = spaces.Discrete(2)  # 2 SIM types: physical, eSIM, embedded
+    _sim2_type = spaces.Discrete(2)  # 2 SIM types: physical, eSIM
     _sim2_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
 
     #MDN Info
-    _mdn_status = spaces.Discrete(4) # 0: na; 1: reserved; 2: inUse; 3: pending return
+    _mdn_status = spaces.Discrete(3) # 0: na; 1: reserved; 2: inUse;
     _mdn2sim = spaces.Discrete(3) # 0: available; 1: mdn linked to sim1 (src); 2: mdn linked to sim2 (target)
     _useExistingMdn = spaces.Discrete(2) # 0: no; 1: yes 
 
@@ -110,51 +110,66 @@ class MobilePhoneCarrierEnv(gym.Env):
             new_state["address_validation_status"] = 1  # Mark address as validated
             self.reward +=1
         elif (action==Actions.DeviceValidation.value and new_state["device_validation_status"]==0):
-            new_state["device_validation_status"]=1
+            new_state["device_validation_status"] = 1
             self.reward +=1
         elif (action==Actions.SimValidation.value and new_state["sim_validation_status"]==0):
             new_state["sim_validation_status"]=1
             self.reward +=1
         elif (action==Actions.ReserveMDN.value):
             if(new_state["use_existing_mdn"]==1):
-                self.reward -=1
+                if(new_state["mdn2sim"]==1):
+                    self.reward -=1
+                elif(new_state["mdn_status"] in [1,2]):
+                    self.reward -=1
+                elif(new_state["mdn_status"]==0):
+                    new_state["mdn_status"]=1
+                    new_state["mdn2sim"]=2
+                    self.reward +=1
+                else:
+                    self.reward +=1
             elif(new_state["mdn_status"]==0): 
                 new_state["mdn_status"]=1
                 new_state["mdn2sim"]=2
                 self.reward +=1
             else:
                 self.reward -=1
-        elif (action==Actions.ServiceActivation.value and self.is_everything_valid(new_state)):
-            if(new_state["payment_status"]!=1):
-                self.reward -=1
+        elif (action==Actions.ServiceActivation.value):
+            if(not self.is_everything_valid(new_state)):
+                self.reward -=0.5
+            elif(new_state["payment_status"] !=1 ):
+                self.reward -=0.5
             else: # paid customer continue
                 if(new_state["use_existing_mdn"]==0): 
                     if (new_state["mdn_status"]==1):  # Activate
-                        new_state["mdn_status"]=2
-                        new_state["mdn2sim"]=2
-                        self.reward += 5
-                        #print("got here*************************")
+                        self._activate(new_state)
                         done = True  # Complete order, end episode
                     else:
                         self.reward -=1
-                elif new_state['mdn2sim'] in [0, 2]: # using existing number, check MDN association
-                    new_state["mdn_status"]=2
-                    self.reward += 5
-                    done = True  # Complete order, end episode
-                elif(new_state['mdn2sim']==1):
-                    self.reward -=1
+                elif (new_state["use_existing_mdn"]==1):
+                    if(new_state['mdn2sim'] in [0, 2]): # using existing number, check MDN association
+                        self._activate(new_state)
+                        done = True  # Complete order, end episode
+                    elif(new_state['mdn2sim']==1):
+                        self.reward -=0.5
+                    else:
+                        self.reward -=0.5
                 else:
-                    self.reward -=1
+                    print("how did I get here?")
         elif (action==Actions.DeactivateOld.value):
             if(new_state["use_existing_mdn"]==1 and new_state["mdn2sim"]==1):
                 new_state["mdn2sim"]=0
-                new_state["mdn_status"]=1
+                new_state["mdn_status"]=0
+                self.reward +=2
+            else:
+                self.reward -=1
+        elif (action==Actions.MakePayment.value):
+            if(new_state["payment_status"]==1):
+                self.reward -=1
+            elif(new_state["payment_status"] !=1 ):
+                new_state["payment_status"]=1
                 self.reward +=1
             else:
                 self.reward -=1
-        elif (action==Actions.MakePayment.value and new_state["payment_status"]!=1):
-            new_state["payment_status"]=1
-            self.reward +=1
         else:
             self.reward -=1
 
@@ -179,19 +194,24 @@ class MobilePhoneCarrierEnv(gym.Env):
         new_state["device_validation_status"] = 0
         new_state["sim_validation_status"] = 0
         new_state["mdn_status"] = 0
-        #new_state["use_existing_mdn"]=1   #when set to 1, not converging
-        #new_state["mdn2sim"]=1
         self.reward=0
         return new_state
+
+    def _activate(self, new_state):
+        new_state["mdn_status"]=2
+        new_state["mdn2sim"]=2
+        self.reward += 6
+        #print("activation using existint ",new_state["use_existing_mdn"])
 
     def render(self, mode='human'):
         if mode == 'human':
             print("---------- Activation Status ----------")
 
             print(f"MDN is attached to : SIM {self.current_state['mdn2sim']}")
-            print(f"MDN status: {self.current_state['mdn_status']}\n")
+            print(f"MDN status: {self.current_state['mdn_status']}")
+            print(f"Use Existing MDN: {self.current_state['use_existing_mdn']}\n")
+
             print(f"Payment status: {self.current_state['payment_status']}")
-            print(f"Use Existing MDN: {self.current_state['use_existing_mdn']==1}")
             print(f"Validation address: {self.current_state['address_validation_status']}")
             print(f"Validation device: {self.current_state['device_validation_status']}")
             print(f"Validation sim: {self.current_state['sim_validation_status']}") 
