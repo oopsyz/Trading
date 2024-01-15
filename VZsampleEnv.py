@@ -11,6 +11,7 @@ class Actions(Enum):
     SimValidation=2
     ServiceActivation=3
     ReserveMDN=4
+    DeactivateOld=5
     #ServiceQualification=5
     #ServiceCatalogLookup=6
     #ServiceInventoryMgt=7
@@ -34,9 +35,13 @@ class MobilePhoneCarrierEnv(gym.Env):
     # Sim Information
     _sim1_type = spaces.Discrete(3)  # 3 SIM types: physical, eSIM, embedded
     _sim1_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
-    #sim2_type = spaces.Discrete(3)  # 3 SIM types: physical, eSIM, embedded
-    #sim2_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
+    _sim2_type = spaces.Discrete(3)  # 3 SIM types: physical, eSIM, embedded
+    _sim2_status = spaces.Discrete(3)  # 3 SIM statuses: active, inactive, suspended
+
+    #MDN Info
     _mdn_status = spaces.Discrete(4) # 0: na; 1: reserved; 2: inUse; 3: pending return
+    _mdn2sim = spaces.Discrete(3) # 0: available; 1: mdn linked to sim1 (src); 2: mdn linked to sim2 (target)
+    _useExistingMdn = spaces.Discrete(2) # 0: no; 1: yes 
 
     # Network config status
     _network_type = spaces.Discrete(4) #4G, 5G, undefined, other
@@ -62,11 +67,22 @@ class MobilePhoneCarrierEnv(gym.Env):
     def __init__(self):
         super().__init__()
         self.observation_space = spaces.Dict({
+            "address_validation_status": self._address_validation_status,
+            "device_validation_status": self._device_validation_status,
+            "sim_validation_status": self._sim_validation_status,
+            "mdn_status": self._mdn_status,
+            "mdn2sim": self._mdn2sim,
+            "use_existing_mdn": self._useExistingMdn 
+        })
+        '''
+        self.observation_space = spaces.Dict({
             "device_type": self._device_type,
             "manufacturer": self._manufacturer,
             "os": self._os,
-            "sim1_type": self._sim1_type,
-            "sim1_status": self._sim1_status,
+            "sim_src_type": self._sim1_type,
+            "sim_src_status": self._sim1_status,
+            "sim_target_type":self._sim2_type,
+            "sim_target_status":self._sim2_status,
             "network_type": self._network_type,
             "OCS_status": self._OCS_status,
             "HLR_status": self._HLR_status,
@@ -79,9 +95,11 @@ class MobilePhoneCarrierEnv(gym.Env):
             "address_validation_status": self._address_validation_status,
             "device_validation_status": self._device_validation_status,
             "sim_validation_status": self._sim_validation_status,
-            "mdn_status": self._mdn_status
+            "mdn_status": self._mdn_status,
+            "mdn2sim": self._mdn2sim,
+            "use_existing_mdn": self._useExistingMdn 
         })
-
+        '''
         self.action_space = spaces.Discrete(len(Actions))
 
         self.current_state = self._get_obs()
@@ -110,18 +128,39 @@ class MobilePhoneCarrierEnv(gym.Env):
         elif (action==Actions.SimValidation.value and new_state["sim_validation_status"]==0):
             new_state["sim_validation_status"]=1
             self.reward +=1
-        elif (action==Actions.ReserveMDN.value and new_state["mdn_status"]==0):
-            new_state["mdn_status"]=1
-            self.reward +=1
-        elif (action==Actions.ServiceActivation.value and new_state["address_validation_status"] ==1 
-              and new_state["device_validation_status"]==1 and new_state["sim_validation_status"]==1
-              and new_state["mdn_status"]==1):  # Activate
-            new_state["mdn_status"]=2
-            self.reward += 5
-            done = True  # Complete order, end episode
+        elif (action==Actions.ReserveMDN.value):
+            if(new_state["use_existing_mdn"]==1):
+                self.reward -=1
+            elif(new_state["mdn_status"]==0):
+                new_state["mdn_status"]=1
+                self.reward +=1
+            else:
+                self.reward -=1
+        elif (action==Actions.ServiceActivation.value and self.is_everything_valid(new_state)):
+            if(new_state["use_existing_mdn"]==0): 
+                  if (new_state["mdn_status"]==1):  # Activate
+                    new_state["mdn_status"]=2
+                    self.reward += 5
+                    done = True  # Complete order, end episode
+                  else:
+                    self.reward -=1
+            elif new_state['mdn2sim'] in [0, 2]: # using existing number, check MDN association
+                new_state["mdn_status"]=2
+                self.reward += 5
+                done = True  # Complete order, end episode
+            elif(new_state['mdn2sim']==1):
+                self.reward -=1
+            else:
+                self.reward -=1
+        elif (action==Actions.DeactivateOld.value):
+            if(new_state["use_existing_mdn"]==1 and new_state["mdn2sim"]==1):
+                new_state["mdn2sim"]=0
+                new_state["mdn_status"]=1
+                self.reward +=1
+            else:
+                self.reward -=1
         else:
             self.reward -=1
-            done = False
 
         # Reward for asking for missing information
         #if action[4][0] and not self.verification_status[0]:
@@ -131,6 +170,12 @@ class MobilePhoneCarrierEnv(gym.Env):
         self.current_state = new_state
         return self.current_state, self.reward, done, terminated, info
     
+    def is_everything_valid(self, new_state):
+        return (
+            new_state["address_validation_status"] == 1
+            and new_state["device_validation_status"] == 1
+            and new_state["sim_validation_status"] == 1
+        )
     def _get_obs(self):
         new_state = self.observation_space.sample()  # Example initialization
         #self.current_state[key] = np.array([value], dtype=int)
@@ -138,5 +183,7 @@ class MobilePhoneCarrierEnv(gym.Env):
         new_state["device_validation_status"] = 0
         new_state["sim_validation_status"] = 0
         new_state["mdn_status"] = 0
+        #new_state["use_existing_mdn"]=1   #when set to 1, not converging
+        #new_state["mdn2sim"]=1
         self.reward=0
         return new_state
