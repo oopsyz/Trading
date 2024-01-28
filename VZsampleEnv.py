@@ -105,92 +105,129 @@ class MobilePhoneCarrierEnv(gym.Env):
         return self.current_state, {}
 
     def step(self, action):
-        new_state = self.current_state.copy()  # Create a copy of the current state
-        # Reward based on action and update verification status   
+        """
+        Update the state of the environment based on the chosen action and calculate the reward.
 
-        if (action==Actions.AddrValidation.value and new_state["address_validation_status"] ==0):
-            new_state["address_validation_status"] = 1  # Mark address as validated
-            self.reward +=1
-        elif (action==Actions.DeviceValidation.value and new_state["device_validation_status"]==0):
-            new_state["device_validation_status"] = 1
-            self.reward +=1
-        elif (action==Actions.SimValidation.value and new_state["sim_validation_status"]==0):
-            new_state["sim_validation_status"]=1
-            self.reward +=1
-        elif (action==Actions.ReserveMDN.value):
-            if(new_state["use_existing_mdn"]==1):
-                if(new_state["existing_mdn_status"] in [1,2,3]):
-                    self.reward -=1
-                elif(new_state["existing_mdn_status"]==0):
-                    new_state["existing_mdn_status"]=3
-                    self.reward +=1
-                else:
-                    self.reward -=1
-            elif(new_state["use_existing_mdn"]==0):
-                if(new_state["new_mdn_status"] in [1,2,3]):
-                    self.reward -=1
-                elif(new_state["new_mdn_status"]==0): 
-                    new_state["new_mdn_status"]=3
-                    self.reward +=1
-            else:
-                self.reward -=1
-        elif (action==Actions.ServiceActivation.value):
-            if(not self.is_everything_valid(new_state)):
-                self.reward -=1
-            elif(new_state["payment_status"] !=1 ):
-                self.reward -=1
-            else: # paid customer continue
-                if(new_state["use_existing_mdn"]==0): 
-                    if (new_state["new_mdn_status"]==3):  # Activate
-                        self._activate(new_state)
-                    else:
-                        self.reward -=1
-                elif (new_state["use_existing_mdn"]==1):
-                    if(new_state['existing_mdn_status']==3): # using existing number
-                        self._activate(new_state)
-                    elif(new_state['existing_mdn_status']==2):
-                        self.reward=8
-                    else:
-                        self.reward -=1
-                else:
-                    print("how did I get here?")
-        elif (action==Actions.DeactivateOld.value):
-            if(new_state["use_existing_mdn"]==1):
-                if(new_state["existing_mdn_status"] ==1): 
-                    new_state["existing_mdn_status"]=0
-                    self.reward +=2
-                else:  #existing mdn status could be 2, then it is already done
-                    self.reward -=1
-            else:
-                self.reward -=1 #build normal deactivation here 
-        elif (action==Actions.MakePayment.value):
-            if(new_state["payment_status"]==1):
-                self.reward -=1
-            elif(new_state["payment_status"] !=1 ):
-                new_state["payment_status"]=1
-                self.reward +=1
-            else:
-                self.reward -=1
+        Args:
+            action (int): An integer representing the chosen action.
+
+        Returns:
+            tuple: A tuple containing the updated state, reward, done flag, and additional information.
+        """
+        new_state = self.current_state.copy()
+
+        if action == Actions.AddrValidation.value:
+            self._address_validation(new_state)
+        elif action == Actions.DeviceValidation.value:
+            self._device_validation(new_state)
+        elif action == Actions.SimValidation.value:
+            self._sim_validation(new_state)
+        elif action == Actions.ReserveMDN.value:
+            self._reserve_mdn(new_state)
+        elif action == Actions.ServiceActivation.value:
+            self._service_activation(new_state)
+        elif action == Actions.DeactivateOld.value:
+            self._deactivate_old_phone(new_state)
+        elif action == Actions.MakePayment.value:
+            self._make_payment(new_state)
+        else:
+            self.reward -= 1
+
+        self._update_done_flag(new_state)
+
+        terminated = False
+        info = {}
+        self.current_state = new_state
+        return self.current_state, self.reward, self.done, terminated, info
+
+    def _address_validation(self, new_state):
+        if new_state["address_validation_status"] == 0:
+            new_state["address_validation_status"] = 1
+            self.reward += 1
         else:
             self.reward -=1
 
-        if(new_state["use_existing_mdn"]==0): 
-            if(new_state['new_mdn_status']==2):
+    def _device_validation(self, new_state):
+        if new_state["device_validation_status"] == 0:
+            new_state["device_validation_status"] = 1
+            self.reward += 1
+        else:
+            self.reward -=1
+
+    def _sim_validation(self, new_state):
+        if new_state["sim_validation_status"] == 0:
+            new_state["sim_validation_status"] = 1
+            self.reward += 1
+        else:
+            self.reward -=1
+
+    def _reserve_mdn(self, new_state):
+        if new_state["use_existing_mdn"] == 1:
+            if new_state["existing_mdn_status"] in [1, 2, 3]:
+                self.reward -= 1
+            elif new_state["existing_mdn_status"] == 0:
+                new_state["existing_mdn_status"] = 3
+                self.reward += 1
+            else:
+                self.reward -= 1
+        else:
+            if new_state["new_mdn_status"] in [1, 2, 3]:
+                self.reward -= 1
+            elif new_state["new_mdn_status"] == 0:
+                new_state["new_mdn_status"] = 3
+                self.reward += 1
+            else:
+                self.reward -= 1
+
+
+    def _service_activation(self, new_state):
+        if not self.is_everything_valid(new_state):
+            self.reward -= 1
+        elif new_state["payment_status"] != 1:
+            self.reward -= 1
+        else:
+            if new_state["use_existing_mdn"] == 0:
+                if new_state["new_mdn_status"] == 3:
+                    self._activate(new_state)
+                else:
+                    self.reward -= 1
+            elif new_state["use_existing_mdn"] == 1:
+                if new_state['existing_mdn_status'] == 3:
+                    self._activate(new_state)
+                elif new_state['existing_mdn_status'] == 2:
+                    self.reward = 8
+                else:
+                    self.reward -= 1
+            else:
+                print("how did I get here?")
+
+    def _deactivate_old_phone(self, new_state):
+        if new_state["use_existing_mdn"] == 1:
+            if new_state["existing_mdn_status"] == 1:
+                new_state["existing_mdn_status"] = 0
+                self.reward += 1
+            else:
+                self.reward -= 1
+        else:
+            self.reward -= 1
+
+    def _make_payment(self, new_state):
+        PAID = 1
+        if new_state["payment_status"] == PAID:
+            self.reward -= 1
+        else:
+            new_state["payment_status"] = PAID
+            self.reward += 1
+
+    def _update_done_flag(self, new_state):
+        if new_state["use_existing_mdn"] == 0:
+            if new_state['new_mdn_status'] == 2:
                 self.done = True
-        elif (new_state["use_existing_mdn"]==1):
-            if(new_state['existing_mdn_status']==2):
+        elif new_state["use_existing_mdn"] == 1:
+            if new_state['existing_mdn_status'] == 2:
                 self.done = True
         else:
             self.done = False
-
-        # Reward for asking for missing information
-        #if action[4][0] and not self.verification_status[0]:
-        #    reward += 0.5 
-        terminated = False
-        info = {}  # Optional: Additional information
-        self.current_state = new_state
-        #return self.current_state, self.reward, done, terminated, info
-        return self.current_state, self.reward, self.done, terminated, info
     
     def is_everything_valid(self, new_state):
         return (
