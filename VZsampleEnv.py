@@ -13,6 +13,7 @@ class Actions(Enum):
     DeactivateOld = 5
     MakePayment = 6
     ActivateVAS = 7
+    PortExistingMDN = 8
 
     def get_action_type(value):
         for action in Actions:
@@ -57,6 +58,7 @@ class MobilePhoneCarrierEnv(gym.Env):
 
     #MDN Info
     _mdn_status = spaces.Discrete(4) # 0: na; 1: in use with sim1; 2: in use with sim 2 ; 3: reserved
+    _existing_mdn_status = spaces.Discrete(5) # 0: na; 1: in use with sim1; 2: in use with sim 2 ; 3: reserved; 4: external mdn
     _useExistingMdn = spaces.Discrete(2) # 0: no; 1: yes 
 
     # Network config status
@@ -102,7 +104,7 @@ class MobilePhoneCarrierEnv(gym.Env):
             "address_validation_status": self._address_validation_status,
             "device_validation_status": self._device_validation_status,
             "sim_validation_status": self._sim_validation_status,
-            "existing_mdn_status": self._mdn_status,
+            "existing_mdn_status": self._existing_mdn_status,
             "new_mdn_status": self._mdn_status,
             "vas_status": self._vas_status,
             "use_existing_mdn": self._useExistingMdn
@@ -148,6 +150,8 @@ class MobilePhoneCarrierEnv(gym.Env):
             self._make_payment(new_state)
         elif action == Actions.ActivateVAS.value:
             self._vas(new_state)
+        elif action == Actions.PortExistingMDN.value:
+            self._port_existing_mdn(new_state)
         else:
             self.reward -= 1
 
@@ -181,7 +185,7 @@ class MobilePhoneCarrierEnv(gym.Env):
 
     def _reserve_mdn(self, new_state):
         if new_state["use_existing_mdn"] == 1:
-            if new_state["existing_mdn_status"] in [1, 2, 3]:
+            if new_state["existing_mdn_status"] in [1, 2, 3, 4]:
                 self.reward -= 1
             elif new_state["existing_mdn_status"] == 0:
                 new_state["existing_mdn_status"] = 3
@@ -217,7 +221,6 @@ class MobilePhoneCarrierEnv(gym.Env):
         else:
             self.reward -= 1
 
-
     def _deactivate_old_phone(self, new_state):
         if new_state["use_existing_mdn"] == 1:
             if new_state["existing_mdn_status"] == 1:
@@ -228,10 +231,17 @@ class MobilePhoneCarrierEnv(gym.Env):
         else:
             self.reward -= 1
 
+    def _port_existing_mdn(self, new_state):
+        if new_state["use_existing_mdn"] == 1 and new_state["existing_mdn_status"] == 4:
+            new_state["existing_mdn_status"] = 3
+            self.reward += 1
+        else:
+            self.reward -= 1
+
     def _make_payment(self, new_state):
         PAID = 1
         if new_state["payment_status"] == PAID:
-            self.reward -= 1
+            self.reward -= 3
         else:
             new_state["payment_status"] = PAID
             self.reward += 1

@@ -119,3 +119,18 @@ class Test_Vas:
         assert env.done == True
         assert env.reward == 9
 
+    def test_port(self):
+        env = MobilePhoneCarrierEnv()
+        new_state = env.observation_space.sample()
+        new_state["address_validation_status"] = 1
+        new_state["device_validation_status"] = 1
+        new_state["sim_validation_status"] = 1
+        #
+        new_state["new_mdn_status"] = 4
+        new_state["existing_mdn_status"] = 3
+        new_state["use_existing_mdn"] = 0
+        new_state["payment_status"] = 1
+        new_state["vas_status"] = 2
+        env._port_existing_mdn(new_state)
+        assert new_state["existing_mdn_status"] == 3
+        assert env.reward == -1

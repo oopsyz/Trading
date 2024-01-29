@@ -42,7 +42,7 @@ env.reset()
 #_Random_Agent()
 
 #train model
-train=False  #set to False to just load existing without training
+train=True  #set to False to just load existing without training
 if(train):
   #Hyperparameter tuning
   '''
@@ -52,7 +52,7 @@ if(train):
   model = A2C('MultiInputPolicy', env, verbose=1, **best_params, tensorboard_log="./tensorboard_logs/")
   '''
   # static hyperparameters
-  model = PPO('MultiInputPolicy', env, verbose=1, learning_rate=0.0005, ent_coef=0.9, tensorboard_log="./tensorboard_logs/") 
+  model = PPO('MultiInputPolicy', env, verbose=1, learning_rate=0.005, ent_coef=0.9, tensorboard_log="./tensorboard_logs/") 
   model.learn(total_timesteps=80000)
   model.save("activation")
   print("Model Saved")
@@ -61,7 +61,7 @@ if(train):
 finetune=True
 entropy_coef=0.1
 while finetune:
-  params = { 'learning_rate': 0.0003, 'n_steps': 1024, 'ent_coef': entropy_coef, 'batch_size': 128, 'n_epochs': 5 }
+  params = { 'learning_rate': 0.001, 'n_steps': 1024, 'ent_coef': entropy_coef, 'batch_size': 128, 'n_epochs': 5 }
   model=PPO.load("activation", env, custom_objects=params)
   print(f"Hyper Params: lr:{model.learning_rate}; batch size:{model.batch_size}; ent_coef:{model.ent_coef}")
   model.learn(total_timesteps=20000)
