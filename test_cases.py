@@ -118,3 +118,4 @@ class Test_Vas:
         env._update_done_flag(new_state)
         assert env.done == True
         assert env.reward == 9
+

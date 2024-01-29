@@ -18,19 +18,6 @@ def objective(trial):
     mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)
     return -mean_reward  # Minimize negative mean reward
 
-def _test_case1():
-    print("Using ********** test case****")
-    new_state = env.observation_space.sample()
-    new_state["address_validation_status"] = 1
-    new_state["device_validation_status"] = 1
-    new_state["sim_validation_status"] = 1
-    #
-    new_state["new_mdn_status"] = 3
-    new_state["existing_mdn_status"] = 0
-    new_state["payment_status"] = 1
-    new_state["use_existing_mdn"] = 1
-    return new_state
-
 def _Random_Agent():
   t = 0
   observation = env.reset()
@@ -46,6 +33,7 @@ def _Random_Agent():
       print(f"***Episode finished after {t+1} timesteps***")
       observation = env.reset()
       break
+  input("hit enter")
 
 
 env.reset()
@@ -54,7 +42,7 @@ env.reset()
 #_Random_Agent()
 
 #train model
-train=True  #set to False to just load existing without training
+train=False  #set to False to just load existing without training
 if(train):
   #Hyperparameter tuning
   '''
@@ -65,28 +53,31 @@ if(train):
   '''
   # static hyperparameters
   model = PPO('MultiInputPolicy', env, verbose=1, learning_rate=0.0005, ent_coef=0.9, tensorboard_log="./tensorboard_logs/") 
-  model.learn(total_timesteps=60000)
+  model.learn(total_timesteps=80000)
   model.save("activation")
   print("Model Saved")
   del model
 
 finetune=True
-if(finetune):
-  params = { 'learning_rate': 0.0003, 'n_steps': 1024, 'ent_coef': 0.1, 'batch_size': 128, 'n_epochs': 5 }
+entropy_coef=0.1
+while finetune:
+  params = { 'learning_rate': 0.0003, 'n_steps': 1024, 'ent_coef': entropy_coef, 'batch_size': 128, 'n_epochs': 5 }
   model=PPO.load("activation", env, custom_objects=params)
-  print(f"Hyper Params: lr:{model.learning_rate}; batch size:{model.batch_size}")
-  model.learn(total_timesteps=80000)
+  print(f"Hyper Params: lr:{model.learning_rate}; batch size:{model.batch_size}; ent_coef:{model.ent_coef}")
+  model.learn(total_timesteps=20000)
   model.save("activation")
   print("Retrained model saved")
+  print(f"Current ent_coef: {model.ent_coef}")
   del model
+  user_input=input("What is the new value?")
+  if user_input == 'stop':
+     break
+  entropy_coef = float(user_input.strip())
+  print(f"Using ent_coef: {entropy_coef}")
+   
 
 model=PPO.load("activation")
 obs,_ = env.reset()
-#testing, comment out for normal ops
-testing=False
-if(testing): 
-  obs = _test_case1() 
-  env.set_test_data(obs)
 
 print("Reset obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["new_mdn_status"])
 
