@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Web Page</title>
+</head>
+<body>
+    <div id="result">
+        <h1>Prediction Result:</h1>
+        <p>Action: {{ action }}</p>
+        <p>State:</p>
+        <ul>
+            {% if completed==1 %}
+                <h1>Completed: {{completed}}</h1>
+            {% endif %}
+            <form action="/predict" method="post">
+                {% if state %}
+                {% for key, value in state.items() %}
+                    <li><lable for={{ key }}>{{ key }}</lable>  <input type="text" size=2 name={{ key }} value={{ value }}></li>
+                {% endfor %}
+                {% endif %}
+                <button type="submit">Run Inference</button>
+        </form>
+        </ul>
+    </div>
+</body>
+</html>

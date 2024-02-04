@@ -75,7 +75,8 @@ class MobilePhoneCarrierEnv(gym.Env):
     _address_validation_status = spaces.Discrete(2) # Address
     _device_validation_status = spaces.Discrete(2)  # Device
     _sim_validation_status = spaces.Discrete(2)  # SIM
-
+    
+    #vas
     _vas_status = spaces.Discrete(3) # 0: No subscription; 1: active; 2: not active
 
     reward=0
@@ -100,7 +101,6 @@ class MobilePhoneCarrierEnv(gym.Env):
             "TASPI_status": self._TASPI_status,
 
             "payment_status": self._payment_status,
-
             "address_validation_status": self._address_validation_status,
             "device_validation_status": self._device_validation_status,
             "sim_validation_status": self._sim_validation_status,
@@ -284,6 +284,8 @@ class MobilePhoneCarrierEnv(gym.Env):
         #new_state=self._test_case1()
         return new_state
 
+    def set_test_data(self, testdata):
+        self.current_state=testdata
 
     def render(self, mode='human'):
         if mode == 'human':
