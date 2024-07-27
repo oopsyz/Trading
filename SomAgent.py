@@ -1,12 +1,28 @@
 import torch
 from VZsampleEnv import MobilePhoneCarrierEnv, Actions
 from stable_baselines3 import A2C, PPO
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.policies import obs_as_tensor
+from sb3_contrib import RecurrentPPO
+
 import optuna
+
+config={
+  "learning_rate":0.005,
+  "ent_coef":0.9,
+}
+
 
 # Create an environment with a discrete action space of 1
 env = MobilePhoneCarrierEnv()
+#env = Monitor(env)  # Wrap the environment with Monitor
+#env = DummyVecEnv([lambda: env])  # Wrap the environment in a DummyVecEnv
+
+# Check for GPU availability
+
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 def objective(trial):
     lr = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
@@ -52,7 +68,7 @@ if(train):
   model = A2C('MultiInputPolicy', env, verbose=1, **best_params, tensorboard_log="./tensorboard_logs/")
   '''
   # static hyperparameters
-  model = PPO('MultiInputPolicy', env, verbose=1, learning_rate=0.005, ent_coef=0.9, tensorboard_log="./tensorboard_logs/") 
+  model = PPO('MultiInputPolicy', env, verbose=1, device=device, learning_rate=config["learning_rate"], batch_size=128, ent_coef=config["ent_coef"], tensorboard_log="./tensorboard_logs/")
   model.learn(total_timesteps=80000)
   model.save("activation")
   print("Model Saved")
@@ -62,27 +78,27 @@ finetune=True
 entropy_coef=0.1
 while finetune:
   params = { 'learning_rate': 0.001, 'n_steps': 1024, 'ent_coef': entropy_coef, 'batch_size': 128, 'n_epochs': 5 }
-  model=PPO.load("activation", env, custom_objects=params)
+  model=PPO.load("activation", env, custom_objects=params, device=device)
   print(f"Hyper Params: lr:{model.learning_rate}; batch size:{model.batch_size}; ent_coef:{model.ent_coef}")
   model.learn(total_timesteps=20000)
   model.save("activation")
   print("Retrained model saved")
   print(f"Current ent_coef: {model.ent_coef}")
   del model
-  user_input=input("What is the new value?")
+  user_input=input("What is the new value (type 'stop' to stop)?")
   if user_input == 'stop':
      break
   entropy_coef = float(user_input.strip())
   print(f"Using ent_coef: {entropy_coef}")
    
 
-model=PPO.load("activation")
+model=PPO.load("activation",device=device)
 obs,_ = env.reset()
 
 print("Reset obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["new_mdn_status"])
 
 steps=0
-for i in range(130):
+for i in range(30):
     action, _state = model.predict(obs, deterministic=False)
     #action = env.action_space.sample()
     print("Doing ", Actions.get_action_type(action))
