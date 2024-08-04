@@ -115,7 +115,7 @@ class MobilePhoneCarrierEnv(gym.Env):
         #self.current_state["verification_status"] = (random.randint(0, 1), random.randint(0, 1), random.randint(0, 1))
         
 
-    def reset(self, seed=None):
+    def reset(self, seed=None, options=None):
         if seed is not None:
              self.np_random.seed(seed)
         # Reset the environment to its initial state (replace with your logic)
@@ -133,6 +133,7 @@ class MobilePhoneCarrierEnv(gym.Env):
             tuple: A tuple containing the updated state, reward, done flag, and additional information.
         """
         new_state = self.current_state.copy()
+
 
         if action == Actions.AddrValidation.value:
             self._address_validation(new_state)

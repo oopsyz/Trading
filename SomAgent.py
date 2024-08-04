@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from VZsampleEnv import MobilePhoneCarrierEnv, Actions
 from stable_baselines3 import A2C, PPO
@@ -5,24 +6,30 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
 from sb3_contrib import RecurrentPPO
+import gymnasium as gym
+from gymnasium.wrappers import FlattenObservation
 
 import optuna
 
+# MultiInputPolicy, MlpLstmPolicy
 config={
   "learning_rate":0.005,
   "ent_coef":0.9,
+  "policy":'MlpLstmPolicy',
 }
 
 
-# Create an environment with a discrete action space of 1
 env = MobilePhoneCarrierEnv()
+if config["policy"] == "MlpLstmPolicy":
+  env = FlattenObservation(env)  #used with MlpLstmPolicy
+
 #env = Monitor(env)  # Wrap the environment with Monitor
 #env = DummyVecEnv([lambda: env])  # Wrap the environment in a DummyVecEnv
 
 # Check for GPU availability
 
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#device = torch.device("cpu")
 
 def objective(trial):
     lr = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
@@ -58,7 +65,7 @@ env.reset()
 #_Random_Agent()
 
 #train model
-train=True  #set to False to just load existing without training
+train=False  #set to False to just load existing without training
 if(train):
   #Hyperparameter tuning
   '''
@@ -68,17 +75,25 @@ if(train):
   model = A2C('MultiInputPolicy', env, verbose=1, **best_params, tensorboard_log="./tensorboard_logs/")
   '''
   # static hyperparameters
-  model = PPO('MultiInputPolicy', env, verbose=1, device=device, learning_rate=config["learning_rate"], batch_size=128, ent_coef=config["ent_coef"], tensorboard_log="./tensorboard_logs/")
-  model.learn(total_timesteps=80000)
+  if config["policy"] == "MlpLstmPolicy":
+    model = RecurrentPPO(config["policy"], env, verbose=1, device=device, learning_rate=config["learning_rate"], batch_size=128, ent_coef=config["ent_coef"], tensorboard_log="./tensorboard_logs/")
+  else:
+    model = PPO(config["policy"], env, verbose=1, device=device, learning_rate=config["learning_rate"], batch_size=128, ent_coef=config["ent_coef"], tensorboard_log="./tensorboard_logs/")
+
+  model.learn(total_timesteps=500000)
   model.save("activation")
   print("Model Saved")
   del model
 
-finetune=True
+finetune=False
 entropy_coef=0.1
 while finetune:
   params = { 'learning_rate': 0.001, 'n_steps': 1024, 'ent_coef': entropy_coef, 'batch_size': 128, 'n_epochs': 5 }
-  model=PPO.load("activation", env, custom_objects=params, device=device)
+  if config["policy"] == "MlpLstmPolicy":
+    model=RecurrentPPO.load("activation", env, custom_objects=params, device=device)
+  else:
+    model=PPO.load("activation", env, custom_objects=params, device=device)
+
   print(f"Hyper Params: lr:{model.learning_rate}; batch size:{model.batch_size}; ent_coef:{model.ent_coef}")
   model.learn(total_timesteps=20000)
   model.save("activation")
@@ -90,27 +105,47 @@ while finetune:
      break
   entropy_coef = float(user_input.strip())
   print(f"Using ent_coef: {entropy_coef}")
-   
 
-model=PPO.load("activation",device=device)
+#load model for prediction   
+if config["policy"] == "MlpLstmPolicy":
+  model=RecurrentPPO.load("activation", device=device)
+else:
+  model=PPO.load("activation", device=device)
+
 obs,_ = env.reset()
+#print("Reset obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["new_mdn_status"])
 
-print("Reset obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["new_mdn_status"])
 
 steps=0
-for i in range(30):
-    action, _state = model.predict(obs, deterministic=False)
+# cell and hidden state of the LSTM
+lstm_states = None
+num_envs = 1
+# Episode start signals are used to reset the lstm states
+episode_starts = np.ones((num_envs,), dtype=bool)
+
+for i in range(300):
+    action, lstm_states = model.predict(obs, state=lstm_states, episode_start=episode_starts, deterministic=False)
     #action = env.action_space.sample()
     print("Doing ", Actions.get_action_type(action))
     obs, reward, done, terminated, info = env.step(action)
+    episode_starts = done
     steps +=1
     #print("episod ", i, "obs:",obs["address_validation_status"],obs["device_validation_status"],obs["sim_validation_status"], obs["mdn_status"],"reward:", reward, done)
     #print("mdn related to:", obs["mdn2sim"]," use existing? ",obs["use_existing_mdn"])
-    env.render(mode="human")
+
+    if isinstance(env, gym.Wrapper):
+      env.env.render(mode="human")
+    else:
+      env.render(mode="human")
+
     if done:
       print(f"Completed in {steps} steps")
       obs,_ = env.reset()
       steps=0
+      lstm_states = None
+      num_envs = 1
+      # Episode start signals are used to reset the lstm states
+      episode_starts = np.ones((num_envs,), dtype=bool)
       #break
 
 #env.step(env.action_space.sample())
